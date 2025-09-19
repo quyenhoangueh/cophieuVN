@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AIoT Screener — CANSLIM Live (Sectors)</title>
+  <style>
+    :root { --bg:#0b0f17; --panel:#121826; --muted:#9aa4b2; --text:#e6e9ef; }
+    html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui;}
+    header{padding:16px 20px;background:linear-gradient(90deg,#0d1320,#111a2e);border-bottom:1px solid #1c2436;position:sticky;top:0;z-index:10;}
+    h1{margin:0;font-size:20px;} .sub{color:var(--muted);font-size:12px;}
+    .wrap{display:flex;gap:16px;padding:16px;}
+    .side{width:380px;background:#121826;border:1px solid #1c2436;border-radius:12px;padding:14px;height:calc(100vh - 96px);overflow:auto;position:sticky;top:80px;}
+    .main{flex:1;}
+    .card{background:#121826;border:1px solid #1c2436;border-radius:12px;padding:12px;}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    input,select{width:100%;padding:8px;border-radius:8px;background:#0f1422;color:#e6e9ef;border:1px solid #25314a;}
+    .btn{background:#1b2943;border:1px solid #2a3a5f;color:#d8e1f0;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600;}
+    .btn:hover{background:#223457;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{padding:8px 10px;border-bottom:1px solid #1b2438;font-size:13px;text-align:right;}
+    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3){text-align:left;}
+    th{position:sticky;top:0;background:#11182a;z-index:5;cursor:pointer;}
+    .muted{color:var(--muted);font-size:12px;}
+    .pos{color:#7ee787;} .neg{color:#ff7b7b;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AIoT Screener — CANSLIM Live <span class="sub">• sectors • auto backend</span></h1>
+  </header>
+  <div class="wrap">
+    <aside class="side">
+      <h3 style="margin:4px 0 12px 0;">Chọn ngành / danh sách</h3>
+      <div class="card">
+        <label>Nhóm ngành</label>
+        <select id="sector" onchange="onSectorChange()">
+          <option value="ALL" selected>Toàn thị trường (VN30 + Midcap)</option>
+          <option value="BANK">Ngân hàng</option>
+          <option value="REAL">Bất động sản</option>
+          <option value="RETAIL">Bán lẻ</option>
+          <option value="STEEL">Thép</option>
+          <option value="OIL">Dầu khí</option>
+          <option value="LOG">Vận tải - Cảng</option>
+          <option value="FMCG">FMCG - Hàng tiêu dùng</option>
+          <option value="FERT">Phân bón - Hoá chất</option>
+          <option value="IT">Công nghệ - Viễn thông</option>
+        </select>
+        <label style="margin-top:8px;">Danh sách mã (phẩy)</label>
+        <textarea id="tickers" rows="4" style="width:100%;background:#0f1422;color:#e6e9ef;border:1px solid #25314a;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn" onclick="loadLive()">Tải dữ liệu</button>
+          <button class="btn" onclick="applyCANSLIM()">CANSLIM</button>
+          <button class="btn" onclick="exportCSV()">Xuất CSV</button>
+        </div>
+        <p class="muted" style="margin-top:6px;">API cố định: <code>https://aiot-screener-backend.onrender.com</code></p>
+      </div>
+
+      <h3 style="margin:12px 0;">Bộ lọc (CANSLIM)</h3>
+      <div class="card">
+        <div class="row">
+          <div><label>P/E tối đa</label><input id="fPEMax" type="number" step="0.1" placeholder="vd 25"/></div>
+          <div><label>P/B tối đa</label><input id="fPBMax" type="number" step="0.1" placeholder="vd 3"/></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div><label>ROE tối thiểu (%)</label><input id="fROEMin" type="number" step="0.1" placeholder="vd 15"/></div>
+          <div><label>EPS YoY ≥ (%)</label><input id="fEPSMin" type="number" step="0.1" placeholder="vd 25"/></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div><label>Doanh thu YoY ≥ (%)</label><input id="fRevMin" type="number" step="0.1" placeholder="vd 20"/></div>
+          <div><label>Volume Surge ≥ (x)</label><input id="fVolSurge" type="number" step="0.1" placeholder="vd 1.5"/></div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div><label>Thanh khoản tối thiểu (tỷ/ngày)</label><input id="fLiqMin" type="number" step="10" placeholder="vd 100"/></div>
+          <div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <button class="btn" onclick="applyFilters()">Áp dụng</button>
+          <button class="btn" onclick="resetFilters()">Reset</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="card">
+        <div class="muted">Kết quả: <span id="resultCount">0</span> mã</div>
+        <div style="overflow:auto; max-height: calc(100vh - 180px);">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>Mã</th><th>Giá</th><th>%1D</th><th>P/E</th><th>P/B</th><th>ROE</th><th>EPS YoY</th><th>Rev YoY</th><th>Vol x20d</th><th>Thanh khoản</th><th>Score</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+const API_BASE = "https://aiot-screener-backend.onrender.com";
+
+// Sector lists (VN30 + phổ biến)
+const SECTORS = {
+  ALL: ["VNM","HPG","MSN","SAB","QNS","DBC","GAS","POW","PLX","MWG","FRT","PNJ","DGW","VRE","VCB","BID","CTG","TCB","MBB","VPB","TPB","HDB","STB","ACB","VIC","VHM","NVL","PDR","KDH","DXG","KBC","GMD","HAH","VSC","VTP","HSG","NKG","DPM","DCM","GVR","FPT","VGI","CTR"],
+  BANK: ["VCB","BID","CTG","TCB","MBB","VPB","TPB","HDB","STB","ACB","EIB","MSB","LPB","OCB","VIB","SHB","NAB"],
+  REAL: ["VIC","VHM","NVL","PDR","KDH","DXG","HDG","NLG","KBC","KDH","CRE"],
+  RETAIL: ["MWG","FRT","PNJ","DGW","VRE","VTP"],
+  STEEL: ["HPG","HSG","NKG","TLH","VGS"],
+  OIL: ["GAS","POW","PLX","PVD","PVS","BSR","PVC"],
+  LOG: ["GMD","HAH","VSC","VTP","VOS","VNA"],
+  FMCG: ["VNM","MSN","SAB","QNS","DBC"],
+  FERT: ["DPM","DCM","LAS","BFC"],
+  IT: ["FPT","VGI","CTR","FPT","EVE"]
+};
+
+let ROWS = [];
+let FILTERED = [];
+
+function onSectorChange(){
+  const sec = document.getElementById('sector').value;
+  document.getElementById('tickers').value = (SECTORS[sec] || SECTORS.ALL).join(",");
+}
+
+async function fetchAPI(path, params){
+  const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+  const res = await fetch(API_BASE + path + qs);
+  if(!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function loadLive(){
+  const tickers = document.getElementById('tickers').value.trim().replace(/\s+/g,'');
+  if(!tickers) return alert("Danh sách mã trống");
+  const [quotes, funds] = await Promise.all([
+    fetchAPI("/api/quotes", { tickers }),
+    fetchAPI("/api/fundamentals", { tickers })
+  ]);
+  const mapF = Object.fromEntries(funds.map(x=>[x.ticker, x]));
+  ROWS = quotes.map(q => ({ ...q, ...(mapF[q.ticker]||{}) }));
+  applyCANSLIM();
+}
+
+function collectFilters(){
+  return {
+    fPEMax: parseFloat(document.getElementById('fPEMax').value),
+    fPBMax: parseFloat(document.getElementById('fPBMax').value),
+    fROEMin: parseFloat(document.getElementById('fROEMin').value),
+    fEPSMin: parseFloat(document.getElementById('fEPSMin').value),
+    fRevMin: parseFloat(document.getElementById('fRevMin').value),
+    fVolSurge: parseFloat(document.getElementById('fVolSurge').value),
+    fLiqMin: parseFloat(document.getElementById('fLiqMin').value),
+  };
+}
+
+function score(row){
+  return Math.round((
+    (row.ROE||0)*0.4 +
+    (row.EPSYoY||0)*0.6 +
+    (row.RevGrowthYoY||0)*0.3 +
+    (row.VolSurge||0)*1.2 +
+    (row.changePct20D||0)*0.25 +
+    (row.liquidity_bnVND||0)*0.02 -
+    (row.PE||0)*0.2 -
+    (row.PB||0)*0.5 +
+    (row.NewHigh52W? 5: 0)
+  )*10)/10;
+}
+
+function applyFilters(){
+  const f = collectFilters();
+  FILTERED = ROWS.filter(r=>{
+    if(!isNaN(f.fPEMax) && (r.PE||0) > f.fPEMax) return false;
+    if(!isNaN(f.fPBMax) && (r.PB||0) > f.fPBMax) return false;
+    if(!isNaN(f.fROEMin) && (r.ROE||0) < f.fROEMin) return false;
+    if(!isNaN(f.fEPSMin) && (r.EPSYoY||0) < f.fEPSMin) return false;
+    if(!isNaN(f.fRevMin) && (r.RevGrowthYoY||0) < f.fRevMin) return false;
+    if(!isNaN(f.fVolSurge) && (r.VolSurge||0) < f.fVolSurge) return false;
+    if(!isNaN(f.fLiqMin) && (r.liquidity_bnVND||0) < f.fLiqMin) return false;
+    return true;
+  }).map(r=>({ ...r, score: score(r) }));
+  FILTERED.sort((a,b)=> b.score - a.score);
+  render(FILTERED);
+}
+
+function render(rows){
+  document.getElementById('resultCount').innerText = rows.length;
+  const tbody = document.querySelector('#tbl tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    function td(v, cls=''){ const d=document.createElement('td'); d.textContent=(v==null?'':v); if(cls) d.className=cls; return d; }
+    tr.appendChild(td(r.ticker));
+    tr.appendChild(td((r.price||0).toFixed ? r.price.toFixed(2) : r.price));
+    tr.appendChild(td((r.changePct1D||0).toFixed ? (r.changePct1D).toFixed(2) : r.changePct1D, (r.changePct1D>=0?'pos':'neg')));
+    tr.appendChild(td((r.PE||0).toFixed ? r.PE.toFixed(1) : r.PE));
+    tr.appendChild(td((r.PB||0).toFixed ? r.PB.toFixed(2) : r.PB));
+    tr.appendChild(td((r.ROE||0).toFixed ? r.ROE.toFixed(1) : r.ROE));
+    tr.appendChild(td((r.EPSYoY||0).toFixed ? r.EPSYoY.toFixed(1) : r.EPSYoY));
+    tr.appendChild(td((r.RevGrowthYoY||0).toFixed ? r.RevGrowthYoY.toFixed(1) : r.RevGrowthYoY));
+    tr.appendChild(td((r.VolSurge||0).toFixed ? r.VolSurge.toFixed(2) : r.VolSurge));
+    tr.appendChild(td((r.liquidity_bnVND||0).toFixed ? r.liquidity_bnVND.toFixed(1) : r.liquidity_bnVND));
+    tr.appendChild(td((r.score||0).toFixed ? r.score.toFixed(1) : r.score));
+    tbody.appendChild(tr);
+  });
+}
+
+function resetFilters(){
+  ['fPEMax','fPBMax','fROEMin','fEPSMin','fRevMin','fVolSurge','fLiqMin'].forEach(id=>document.getElementById(id).value='');
+  applyFilters();
+}
+
+function applyCANSLIM(){
+  document.getElementById('fPEMax').value = 25;
+  document.getElementById('fPBMax').value = 3;
+  document.getElementById('fROEMin').value = 15;
+  document.getElementById('fEPSMin').value = 25;
+  document.getElementById('fRevMin').value = 20;
+  document.getElementById('fVolSurge').value = 1.5;
+  document.getElementById('fLiqMin').value = 100;
+  applyFilters();
+}
+
+function exportCSV(){
+  const rows = FILTERED.length? FILTERED : ROWS;
+  const cols = ["ticker","price","changePct1D","PE","PB","ROE","EPSYoY","RevGrowthYoY","VolSurge","liquidity_bnVND","score"];
+  let csv = cols.join(',') + '\n';
+  rows.forEach(r=>{
+    const line = cols.map(k => r[k] == null ? '' : r[k]).join(',');
+    csv += line + '\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='screener_canslim_export.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// init
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('sector').value = 'ALL';
+  onSectorChange();
+  loadLive().catch(()=>{});
+});
+</script>
+<p class="muted" style="padding:0 16px 16px;">Build 2025-09-19 — Backend cố định: https://aiot-screener-backend.onrender.com. Nếu chưa có token FireAnt, backend dùng CSV fallback.</p>
+</body>
+</html>
